@@ -7,6 +7,12 @@ import { QuotaService } from './modules/chat/domain/services/QuotaService.js';
 import { MockLLMProvider } from './modules/chat/infrastructure/MockLLMProvider.js';
 import { PrismaChatRepository } from './modules/chat/repositories/PrismaChatRepository.js';
 import { PrismaQuotaRepository } from './modules/chat/repositories/PrismaQuotaRepository.js';
+import type { PaymentGateway } from './modules/subscriptions/domain/ports/PaymentGateway.js';
+import { RenewalService } from './modules/subscriptions/domain/services/RenewalService.js';
+import { SubscriptionService } from './modules/subscriptions/domain/services/SubscriptionService.js';
+import { MockPaymentGateway } from './modules/subscriptions/infrastructure/MockPaymentGateway.js';
+import { scheduleRenewals } from './modules/subscriptions/infrastructure/renewal.job.js';
+import { PrismaSubscriptionRepository } from './modules/subscriptions/repositories/PrismaSubscriptionRepository.js';
 import { createJwtVerifier, remoteJwks } from './shared/auth/jwtVerifier.js';
 import { scheduleNonceCleanup } from './shared/auth/nonceCleanup.job.js';
 import { PrismaNonceStore } from './shared/auth/PrismaNonceStore.js';
@@ -28,6 +34,7 @@ export interface ContainerOverrides {
   clock?: Clock;
   jwks?: JWTVerifyGetKey;
   llm?: LLMProvider;
+  payments?: PaymentGateway;
 }
 
 /**
@@ -74,6 +81,16 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     llmTimeoutMs: config.llm.timeoutMs,
   });
 
+  const subscriptionRepo = new PrismaSubscriptionRepository(prisma);
+  const payments = overrides.payments ?? new MockPaymentGateway(config.billing.paymentFailureRate);
+  const subscriptions = new SubscriptionService(subscriptionRepo, payments, clock);
+  const renewals = new RenewalService(
+    subscriptionRepo,
+    payments,
+    clock,
+    config.billing.renewalBatchSize,
+  );
+
   const jobs: ScheduledTask[] = [];
 
   return {
@@ -89,9 +106,12 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       users,
       nonces,
       chat,
+      subscriptions,
+      renewals,
     },
     startJobs: () => {
       jobs.push(scheduleNonceCleanup(config.billing.nonceCleanupCron, nonces, clock, logger));
+      jobs.push(scheduleRenewals(config.billing.renewalCron, renewals, logger));
     },
     shutdown: async () => {
       await Promise.all(

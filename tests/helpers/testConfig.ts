@@ -17,6 +17,8 @@ export function testEnv(overrides: Record<string, string> = {}): Record<string, 
     CORS_ORIGINS: 'http://localhost:5173',
     LLM_MIN_LATENCY_MS: '0',
     LLM_MAX_LATENCY_MS: '0',
+    // Payments succeed unless a test opts into failures.
+    PAYMENT_FAILURE_RATE: '0',
     ...overrides,
   };
 }

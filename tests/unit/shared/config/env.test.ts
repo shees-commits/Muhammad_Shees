@@ -14,7 +14,8 @@ function problemsFor(env: Record<string, string | undefined>): readonly string[]
 
 describe('loadConfig', () => {
   it('parses a valid environment and applies defaults', () => {
-    const config = loadConfig(testEnv());
+    const { PAYMENT_FAILURE_RATE: _pinnedForTests, ...env } = testEnv();
+    const config = loadConfig(env);
     expect(config.auth.issuer).toBe('https://mock-idp.test/');
     expect(config.auth.replayWindowSeconds).toBe(300);
     expect(config.http.requestTimeoutMs).toBe(10_000);

@@ -2,6 +2,12 @@ import express, { type Express, type RequestHandler, type Response } from 'expre
 import { pinoHttp } from 'pino-http';
 import { chatRoutes } from '../../modules/chat/controllers/chat.routes.js';
 import type { ChatService } from '../../modules/chat/domain/services/ChatService.js';
+import { adminRoutes } from '../../modules/admin/controllers/admin.routes.js';
+import { subscriptionRoutes } from '../../modules/subscriptions/controllers/subscription.routes.js';
+import type { RenewalService } from '../../modules/subscriptions/domain/services/RenewalService.js';
+import type { SubscriptionService } from '../../modules/subscriptions/domain/services/SubscriptionService.js';
+import { Role } from '../auth/Actor.js';
+import { requireRole } from '../auth/requireRole.js';
 import { authRoutes } from '../auth/auth.routes.js';
 import { authenticate } from '../auth/authenticate.middleware.js';
 import type { JwtVerifier } from '../auth/jwtVerifier.js';
@@ -35,6 +41,8 @@ export interface AppDeps {
   users: UserDirectory;
   nonces: NonceStore;
   chat: ChatService;
+  subscriptions: SubscriptionService;
+  renewals: RenewalService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -106,6 +114,13 @@ export function createApp(deps: AppDeps): Express {
 
   app.use('/auth', protect('auth'), authRoutes(deps.users, config.auth.replayWindowSeconds));
   app.use('/chat', protect('chat'), chatRoutes(deps.chat));
+  app.use('/subscriptions', protect('subscriptions'), subscriptionRoutes(deps.subscriptions));
+  app.use(
+    '/admin',
+    protect('admin'),
+    requireRole(Role.ADMIN),
+    adminRoutes({ subscriptions: deps.subscriptions, renewals: deps.renewals }),
+  );
 
   // 10. Fallthrough and centralized errors.
   app.use(notFoundHandler);
