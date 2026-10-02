@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+package-lock.json
+prisma/migrations
+CLAUDE.md
+*.pdf

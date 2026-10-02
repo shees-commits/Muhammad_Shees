@@ -1,0 +1,175 @@
+// Data model for the secure AI chat & subscription backend.
+// Conventions: UUID primary keys, money as integer cents, every timestamp is
+// `timestamptz` and written in UTC. CHECK constraints that Prisma cannot
+// express live in the migration SQL (see prisma/migrations/*_init).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Tier {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InactiveReason {
+  PAYMENT_FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+}
+
+enum PaymentKind {
+  INITIAL
+  RENEWAL
+}
+
+enum ChatMessageStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum QuotaSource {
+  FREE
+  SUBSCRIPTION
+}
+
+/// Provisioned just-in-time from the identity provider's token (`sub`).
+/// `role` mirrors the token claim; the token remains the source of truth.
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  authSub   String   @unique
+  /// Access tokens do not carry email by default, so it is optional.
+  email     String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  freeUsage     MonthlyFreeUsage[]
+  subscriptions Subscription[]
+  chatMessages  ChatMessage[]
+}
+
+/// One row per user per UTC calendar month (`YYYY-MM`). A new month means a
+/// new row starting at 0, so the free quota resets without any cron (D-03).
+model MonthlyFreeUsage {
+  userId    String   @db.Uuid
+  period    String   @db.Char(7)
+  used      Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([userId, period])
+}
+
+model Subscription {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @db.Uuid
+  tier           Tier
+  billingCycle   BillingCycle
+  /// null = unlimited (ENTERPRISE)
+  maxMessages    Int?
+  usedMessages   Int                @default(0)
+  priceCents     Int
+  currency       String             @default("USD") @db.Char(3)
+  startDate      DateTime           @db.Timestamptz(3)
+  endDate        DateTime           @db.Timestamptz(3)
+  /// null when auto-renew is disabled or the subscription was cancelled
+  renewalDate    DateTime?          @db.Timestamptz(3)
+  autoRenew      Boolean
+  status         SubscriptionStatus
+  inactiveReason InactiveReason?
+  cancelledAt    DateTime?          @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+  /// Optimistic concurrency token; bumped on every lifecycle change.
+  version        Int                @default(0)
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  paymentAttempts PaymentAttempt[]
+  chatMessages    ChatMessage[]
+
+  @@index([userId, status])
+  @@index([status, renewalDate])
+}
+
+/// Append-only payment history.
+model PaymentAttempt {
+  id             String        @id @default(uuid()) @db.Uuid
+  subscriptionId String        @db.Uuid
+  amountCents    Int
+  status         PaymentStatus
+  kind           PaymentKind
+  failureReason  String?
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model ChatMessage {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid
+  question         String
+  /// null until the LLM call completes
+  answer           String?
+  status           ChatMessageStatus @default(PENDING)
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  model            String?
+  quotaSource      QuotaSource
+  subscriptionId   String?           @db.Uuid
+  requestId        String
+  latencyMs        Int?
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  completedAt      DateTime?         @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+/// Replay-protection ledger. The composite primary key makes "first use wins"
+/// atomic: a second insert of the same (sub, nonce) fails with a unique violation.
+model UsedNonce {
+  userSub   String
+  nonce     String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@id([userSub, nonce])
+  @@index([expiresAt])
+}
