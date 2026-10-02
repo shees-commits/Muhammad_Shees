@@ -3,6 +3,7 @@ import { pinoHttp } from 'pino-http';
 import { chatRoutes } from '../../modules/chat/controllers/chat.routes.js';
 import type { ChatService } from '../../modules/chat/domain/services/ChatService.js';
 import { adminRoutes } from '../../modules/admin/controllers/admin.routes.js';
+import { metricsRoutes } from '../../modules/admin/controllers/metrics.routes.js';
 import { subscriptionRoutes } from '../../modules/subscriptions/controllers/subscription.routes.js';
 import type { RenewalService } from '../../modules/subscriptions/domain/services/RenewalService.js';
 import type { SubscriptionService } from '../../modules/subscriptions/domain/services/SubscriptionService.js';
@@ -119,7 +120,13 @@ export function createApp(deps: AppDeps): Express {
     '/admin',
     protect('admin'),
     requireRole(Role.ADMIN),
-    adminRoutes({ subscriptions: deps.subscriptions, renewals: deps.renewals }),
+    adminRoutes({ chat: deps.chat, subscriptions: deps.subscriptions, renewals: deps.renewals }),
+  );
+  app.use(
+    '/metrics',
+    protect('admin'),
+    requireRole(Role.ADMIN),
+    metricsRoutes({ chat: deps.chat, subscriptions: deps.subscriptions, clock: deps.clock }),
   );
 
   // 10. Fallthrough and centralized errors.
