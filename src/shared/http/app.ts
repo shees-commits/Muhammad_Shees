@@ -1,5 +1,7 @@
 import express, { type Express, type RequestHandler, type Response } from 'express';
 import { pinoHttp } from 'pino-http';
+import { chatRoutes } from '../../modules/chat/controllers/chat.routes.js';
+import type { ChatService } from '../../modules/chat/domain/services/ChatService.js';
 import { authRoutes } from '../auth/auth.routes.js';
 import { authenticate } from '../auth/authenticate.middleware.js';
 import type { JwtVerifier } from '../auth/jwtVerifier.js';
@@ -32,6 +34,7 @@ export interface AppDeps {
   verifyToken: JwtVerifier;
   users: UserDirectory;
   nonces: NonceStore;
+  chat: ChatService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -102,6 +105,7 @@ export function createApp(deps: AppDeps): Express {
   ];
 
   app.use('/auth', protect('auth'), authRoutes(deps.users, config.auth.replayWindowSeconds));
+  app.use('/chat', protect('chat'), chatRoutes(deps.chat));
 
   // 10. Fallthrough and centralized errors.
   app.use(notFoundHandler);

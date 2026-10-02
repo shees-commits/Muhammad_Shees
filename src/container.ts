@@ -1,6 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import type { JWTVerifyGetKey } from 'jose';
 import type { ScheduledTask } from 'node-cron';
+import type { LLMProvider } from './modules/chat/domain/ports/LLMProvider.js';
+import { ChatService } from './modules/chat/domain/services/ChatService.js';
+import { QuotaService } from './modules/chat/domain/services/QuotaService.js';
+import { MockLLMProvider } from './modules/chat/infrastructure/MockLLMProvider.js';
+import { PrismaChatRepository } from './modules/chat/repositories/PrismaChatRepository.js';
+import { PrismaQuotaRepository } from './modules/chat/repositories/PrismaQuotaRepository.js';
 import { createJwtVerifier, remoteJwks } from './shared/auth/jwtVerifier.js';
 import { scheduleNonceCleanup } from './shared/auth/nonceCleanup.job.js';
 import { PrismaNonceStore } from './shared/auth/PrismaNonceStore.js';
@@ -21,6 +27,7 @@ export interface ContainerOverrides {
   prisma?: PrismaClient;
   clock?: Clock;
   jwks?: JWTVerifyGetKey;
+  llm?: LLMProvider;
 }
 
 /**
@@ -54,6 +61,19 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   const users = new PrismaUserDirectory(prisma);
   const nonces = new PrismaNonceStore(prisma);
 
+  const chat = new ChatService({
+    quota: new QuotaService(new PrismaQuotaRepository(prisma)),
+    chats: new PrismaChatRepository(prisma),
+    llm:
+      overrides.llm ??
+      new MockLLMProvider({
+        minLatencyMs: config.llm.minLatencyMs,
+        maxLatencyMs: config.llm.maxLatencyMs,
+      }),
+    clock,
+    llmTimeoutMs: config.llm.timeoutMs,
+  });
+
   const jobs: ScheduledTask[] = [];
 
   return {
@@ -68,6 +88,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       verifyToken,
       users,
       nonces,
+      chat,
     },
     startJobs: () => {
       jobs.push(scheduleNonceCleanup(config.billing.nonceCleanupCron, nonces, clock, logger));

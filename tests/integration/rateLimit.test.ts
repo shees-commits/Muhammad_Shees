@@ -49,3 +49,29 @@ describe('rate limiting (production default limits)', () => {
     expect(statuses).toEqual([200, 200, 200, 429]);
   });
 });
+
+describe('rate limiting: chat group', () => {
+  it('limits chat per user (20/min) with 429 and Retry-After', async () => {
+    const t = await createTestApp({ realRateLimits: true });
+    const alice = t.as({ sub: 'auth0|chatty' });
+    for (let i = 0; i < 20; i++) expect((await alice.get('/chat/usage')).status).toBe(200);
+
+    const limited = await alice.get('/chat/usage');
+    expect(limited.status).toBe(429);
+    expect(errorOf(limited).code).toBe('RATE_LIMITED');
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('the auth group is stricter than the chat group for the same user', async () => {
+    const t = await createTestApp({ realRateLimits: true });
+    const user = t.as({ sub: 'auth0|compare' });
+    const authStatuses: number[] = [];
+    const chatStatuses: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      authStatuses.push((await user.get('/auth/me')).status);
+      chatStatuses.push((await user.get('/chat/usage')).status);
+    }
+    expect(authStatuses.at(-1)).toBe(429);
+    expect(chatStatuses).toEqual(Array(6).fill(200));
+  });
+});
