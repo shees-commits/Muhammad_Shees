@@ -1,8 +1,9 @@
 # Secure AI Chat & Subscription Backend
 
-A production-style, security-first REST backend in strict TypeScript: an AI chat module with an atomic,
-concurrency-safe quota system, and a subscription-bundle module with a simulated billing lifecycle. Identity comes
-from Auth0 (OIDC). Clean Architecture / DDD layering is enforced by lint rules.
+This is my submission for the GGI backend assessment: a production-style, security-first REST backend in strict
+TypeScript. It has an AI chat module with an atomic, concurrency-safe quota system, and a subscription-bundle module
+with a simulated billing lifecycle. Identity comes from Auth0 (OIDC), and I enforce the Clean Architecture / DDD
+layering with lint rules rather than convention alone.
 
 **At a glance:** 200 automated tests (116 unit + 84 integration against real PostgreSQL), ~92% line coverage,
 `npm run check` and CI green, and 0 known vulnerabilities in dependencies (`npm audit`).
@@ -249,9 +250,10 @@ Error codes ([`errorCodes.ts`](src/shared/errors/errorCodes.ts)), mapped to HTTP
 
 ### Live demo (real Auth0 token)
 
-Recorded on 2026-10-02 against `npm run dev` and the dev database, using a real access token for an Auth0
-Username-Password user with the `admin` role (password grant, see §3). The commands are exactly as run; only the
-token is redacted (it never appears in any response). IDs and timestamps are the real values from that run.
+I recorded this on 2026-10-02 against `npm run dev` and the dev database, using a real access token for my Auth0
+test user (Username-Password connection, `admin` role, password grant; see §3). The commands are exactly as I ran
+them; only the token is redacted (it never appears in any response). IDs and timestamps are the real values from
+that run.
 
 ```bash
 # Obtain a token (§3), then:
@@ -706,7 +708,7 @@ stateDiagram-v2
 
 | ID   | Decision                                                                                                     | Alternatives considered                                                 | Rationale                                                                                                                                                                                 |
 | ---- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-01 | Express 5                                                                                                    | Fastify, NestJS                                                         | Familiar, explicit middleware order (security order matters), native async errors. NestJS decorators/DI would blur the DDD boundaries the task asks to demonstrate.                       |
+| D-01 | Express 5                                                                                                    | Fastify, NestJS                                                         | I know it well; explicit middleware order (security order matters), native async errors. NestJS decorators/DI would blur the DDD boundaries the task asks to demonstrate.                 |
 | D-02 | Reserve → generate → finalize with compensation                                                              | One transaction around the LLM call                                     | Locks are never held during LLM latency; failures refund exactly the reserved unit, idempotently.                                                                                         |
 | D-03 | Period-keyed free usage rows (`userId`, `YYYY-MM`)                                                           | Monthly reset cron                                                      | The reset is exact at 00:00 UTC on the 1st, there is no job to miss, and history is preserved.                                                                                            |
 | D-04 | Timestamp + single-use nonce bound to `sub`                                                                  | DPoP, mTLS, HMAC signing, session binding                               | DPoP needs client key management; mTLS is infrastructure-heavy; HMAC needs per-client secret distribution. A nonce + timestamp blocks replay of a captured request with no client crypto. |
@@ -810,24 +812,24 @@ Legend: ✅ implemented and tested · ⚠️ partial or outside automated testin
 
 ### Architecture, technical constraints, observability, testing, submission
 
-| Requirement                                                                                  | Implementation                                                                                            | Tests / evidence                                                   | Status                                                   |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
-| Clean Architecture (DDD); layers entities / services / policies / repositories / controllers | `src/modules/{chat,subscriptions}/…` (§5)                                                                 | Folder structure                                                   | ✅                                                       |
-| Business logic independent of framework/transport                                            | ESLint boundary rule on `domain/**`                                                                       | `npm run lint` in CI                                               | ✅                                                       |
-| Independent modules `chat/`, `subscriptions/`                                                | Separate domains; chat reads bundles via its own `BundleQuota` read model                                 | —                                                                  | ✅                                                       |
-| TypeScript strict mode                                                                       | [`tsconfig.json`](tsconfig.json) (`strict` + `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) | `npm run typecheck`                                                | ✅                                                       |
-| Relational DB with migrations                                                                | PostgreSQL 16, [`prisma/migrations`](prisma/migrations)                                                   | Integration suite runs `migrate deploy`                            | ✅                                                       |
-| Environment-based configuration                                                              | [`env.ts`](src/shared/config/env.ts), [`.env.example`](.env.example)                                      | `env.test.ts`                                                      | ✅                                                       |
-| ESLint + Prettier configured and enforced                                                    | `eslint.config.js` (strict-type-checked), `.prettierrc.json`, [CI](.github/workflows/ci.yml)              | `npm run check`                                                    | ✅                                                       |
-| Centralized error handling, structured JSON                                                  | `errorHandler.ts`                                                                                         | `errorHandler.test.ts`, every integration test                     | ✅                                                       |
-| Structured logging: request ID, user ID, response time                                       | pino-http in `app.ts`                                                                                     | [`observability.test.ts`](tests/integration/observability.test.ts) | ✅                                                       |
-| Health check endpoint                                                                        | `GET /health`                                                                                             | [`health.test.ts`](tests/integration/health.test.ts)               | ✅                                                       |
-| Basic metrics endpoint (usage, subscriptions)                                                | `GET /metrics`: [`metrics.routes.ts`](src/modules/admin/controllers/metrics.routes.ts)                    | `admin.test.ts`                                                    | ✅                                                       |
-| Unit tests: domain logic, quota calculation, subscription lifecycle                          | `tests/unit/**` (116 tests)                                                                               | `npm run test:unit`                                                | ✅                                                       |
-| Integration tests: authenticated access, rate limiting, security middleware                  | `tests/integration/**` (84 tests)                                                                         | `npm run test:integration`                                         | ✅                                                       |
-| Auth provider mocked, not bypassed                                                           | [`mockIdp.ts`](tests/helpers/mockIdp.ts) local RS256 JWKS → real verifier                                 | `auth.test.ts`                                                     | ✅                                                       |
-| README: architecture decisions, security model, setup                                        | This document                                                                                             | —                                                                  | ✅                                                       |
-| Public GitHub repo named after the author; assessment PDF included                           | PDF committed at the repo root                                                                            | —                                                                  | ⚠️ the author creates the repository and sets visibility |
+| Requirement                                                                                  | Implementation                                                                                            | Tests / evidence                                                   | Status                                                                               |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Clean Architecture (DDD); layers entities / services / policies / repositories / controllers | `src/modules/{chat,subscriptions}/…` (§5)                                                                 | Folder structure                                                   | ✅                                                                                   |
+| Business logic independent of framework/transport                                            | ESLint boundary rule on `domain/**`                                                                       | `npm run lint` in CI                                               | ✅                                                                                   |
+| Independent modules `chat/`, `subscriptions/`                                                | Separate domains; chat reads bundles via its own `BundleQuota` read model                                 | —                                                                  | ✅                                                                                   |
+| TypeScript strict mode                                                                       | [`tsconfig.json`](tsconfig.json) (`strict` + `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) | `npm run typecheck`                                                | ✅                                                                                   |
+| Relational DB with migrations                                                                | PostgreSQL 16, [`prisma/migrations`](prisma/migrations)                                                   | Integration suite runs `migrate deploy`                            | ✅                                                                                   |
+| Environment-based configuration                                                              | [`env.ts`](src/shared/config/env.ts), [`.env.example`](.env.example)                                      | `env.test.ts`                                                      | ✅                                                                                   |
+| ESLint + Prettier configured and enforced                                                    | `eslint.config.js` (strict-type-checked), `.prettierrc.json`, [CI](.github/workflows/ci.yml)              | `npm run check`                                                    | ✅                                                                                   |
+| Centralized error handling, structured JSON                                                  | `errorHandler.ts`                                                                                         | `errorHandler.test.ts`, every integration test                     | ✅                                                                                   |
+| Structured logging: request ID, user ID, response time                                       | pino-http in `app.ts`                                                                                     | [`observability.test.ts`](tests/integration/observability.test.ts) | ✅                                                                                   |
+| Health check endpoint                                                                        | `GET /health`                                                                                             | [`health.test.ts`](tests/integration/health.test.ts)               | ✅                                                                                   |
+| Basic metrics endpoint (usage, subscriptions)                                                | `GET /metrics`: [`metrics.routes.ts`](src/modules/admin/controllers/metrics.routes.ts)                    | `admin.test.ts`                                                    | ✅                                                                                   |
+| Unit tests: domain logic, quota calculation, subscription lifecycle                          | `tests/unit/**` (116 tests)                                                                               | `npm run test:unit`                                                | ✅                                                                                   |
+| Integration tests: authenticated access, rate limiting, security middleware                  | `tests/integration/**` (84 tests)                                                                         | `npm run test:integration`                                         | ✅                                                                                   |
+| Auth provider mocked, not bypassed                                                           | [`mockIdp.ts`](tests/helpers/mockIdp.ts) local RS256 JWKS → real verifier                                 | `auth.test.ts`                                                     | ✅                                                                                   |
+| README: architecture decisions, security model, setup                                        | This document                                                                                             | —                                                                  | ✅                                                                                   |
+| Public GitHub repo named after me; assessment PDF included                                   | PDF committed at the repo root                                                                            | —                                                                  | ⚠️ done at submission time (repository creation and visibility are outside the code) |
 
 ## 12. Testing strategy
 
@@ -917,10 +919,12 @@ functions 92.7%, lines 92.7%.
 
 ## 14. Known limitations and production next steps
 
+These are trade-offs I made knowingly for the scope of this assessment, along with what I would do next in production.
+
 - **Rate-limit store is in memory** (per instance). Production: a Redis store so limits are global across instances.
 - **Nonce store is PostgreSQL** (one insert per request, purged by housekeeping). At high volume: Redis `SET NX` with a TTL.
-- **HMAC request signing (optional bonus) is not implemented.** `X-Request-Signature` is already allowed by CORS and
-  redacted from logs. It needs per-client secret issuance and rotation; DPoP (RFC 9449) is the standards-based next step.
+- **I did not implement HMAC request signing** (the optional bonus). `X-Request-Signature` is already allowed by
+  CORS and redacted from logs. It needs per-client secret issuance and rotation; DPoP (RFC 9449) is the standards-based next step.
 - **Payments are simulated.** A real provider needs webhooks, reconciliation and idempotency keys (already generated
   and passed: `subscriptionId:initial`, `subscriptionId:renewal:endDate`). The mock charge runs inside the renewal row
   lock; with a real provider, use a charge-intent / outbox pattern so no network call happens inside a DB transaction.
@@ -930,8 +934,8 @@ functions 92.7%, lines 92.7%.
   jose (refetch on unknown `kid`, 30 s cooldown) but not monitored.
 - **Offset pagination**; keyset pagination would suit very large histories.
 - **Renewal date drift** after month-end clamping (A-11).
-- **Auth0 connections** (email/password, Google) are tenant configuration and cannot be exercised by CI; the
-  verifier was smoke-tested against the real tenant JWKS.
+- **Auth0 connections** (email/password, Google) are tenant configuration and cannot be exercised by CI. I
+  verified the real integration manually against my tenant (see the live demo in §4).
 - **`/health` is unauthenticated by design** (D-09).
 - **Tooling notes:** npm 10's resolver crashes (`Cannot read properties of null (reading 'edgesOut')`) when
   re-resolving Vitest 4's peers; `npm ci` from the lockfile works, and dependency changes should use
@@ -940,8 +944,9 @@ functions 92.7%, lines 92.7%.
 
 ## 15. Use of AI tools
 
-This project was built with the help of **Claude Code** (Anthropic), working from a detailed specification written
-by the author (kept in [`CLAUDE.md`](CLAUDE.md)). The AI generated code, tests and documentation phase by phase,
-running typecheck, lint and tests at each step. The author directed the architecture and security decisions,
-reviewed the code, and understands the design, including the locking strategy, the replay-protection mechanism and
-the trade-offs recorded in the Decision Log.
+I built this project with the help of **Claude Code** (Anthropic). I first wrote a detailed specification (kept in
+[`CLAUDE.md`](CLAUDE.md)) covering the architecture, data model, security model and test plan, then worked through it
+phase by phase. Claude Code generated code, tests and documentation, and every phase had to pass typecheck, lint and
+the test suite before I committed it. I made the architecture and security decisions, reviewed the code, and
+understand the design, including the locking strategy, the replay-protection mechanism and the trade-offs recorded
+in the Decision Log.
