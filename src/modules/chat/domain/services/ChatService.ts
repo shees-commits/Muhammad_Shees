@@ -1,5 +1,6 @@
 import type { Actor } from '../../../../shared/auth/Actor.js';
 import type { ChatMessage } from '../entities/ChatMessage.js';
+import { periodOf } from '../entities/QuotaPeriod.js';
 import { ChatAccessDeniedError, ChatMessageNotFoundError, LLMUnavailableError } from '../errors.js';
 import { ChatPolicy } from '../policies/ChatPolicy.js';
 import type { ChatRepository, ChatUsageStats, Page, PageResult } from '../ports/ChatRepository.js';
@@ -89,6 +90,32 @@ export class ChatService {
   async systemStats(actor: Actor, since: Date): Promise<ChatUsageStats> {
     if (!ChatPolicy.canViewSystemMetrics(actor)) throw new ChatAccessDeniedError();
     return this.deps.chats.statsSince(since);
+  }
+
+  /**
+   * Recovery for crashes between reserve and finalize: any message still
+   * PENDING long after the LLM deadline is failed and its exact unit refunded
+   * (to the free period it was taken from, or to its subscription).
+   */
+  async recoverStalePending(olderThanMs: number, limit = 100): Promise<number> {
+    const now = this.deps.clock.now();
+    const stale = await this.deps.chats.findStalePending(
+      new Date(now.getTime() - olderThanMs),
+      limit,
+    );
+    for (const message of stale) {
+      await this.deps.quota.release(
+        {
+          messageId: message.id,
+          userId: message.userId,
+          source: message.quotaSource,
+          period: periodOf(message.createdAt),
+          subscriptionId: message.subscriptionId,
+        },
+        now,
+      );
+    }
+    return stale.length;
   }
 
   /** Calls the LLM with a hard deadline, also honouring the request's abort signal. */

@@ -71,6 +71,7 @@ const EnvSchema = z
     AUTH_AUDIENCE: z.string().min(1),
     AUTH_JWKS_URI: httpsUrl,
     AUTH_ROLES_CLAIM: z.string().min(1),
+    AUTH_EMAIL_CLAIM: z.string().min(1).default('email'),
 
     REPLAY_WINDOW_SECONDS: positiveInt.max(3600).default(300),
 
@@ -96,7 +97,7 @@ const EnvSchema = z
     PAYMENT_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0.2),
     RENEWAL_CRON: cronExpression.default('* * * * *'),
     RENEWAL_BATCH_SIZE: positiveInt.max(1000).default(50),
-    NONCE_CLEANUP_CRON: cronExpression.default('*/5 * * * *'),
+    HOUSEKEEPING_CRON: cronExpression.default('*/5 * * * *'),
   })
   .refine((env) => env.LLM_MIN_LATENCY_MS <= env.LLM_MAX_LATENCY_MS, {
     path: ['LLM_MAX_LATENCY_MS'],
@@ -125,6 +126,7 @@ export interface AppConfig {
     audience: string;
     jwksUri: string;
     rolesClaim: string;
+    emailClaim: string;
     replayWindowSeconds: number;
   };
   http: {
@@ -145,7 +147,7 @@ export interface AppConfig {
     paymentFailureRate: number;
     renewalCron: string;
     renewalBatchSize: number;
-    nonceCleanupCron: string;
+    housekeepingCron: string;
   };
 }
 
@@ -179,6 +181,7 @@ export function loadConfig(source: Readonly<Record<string, string | undefined>>)
       audience: env.AUTH_AUDIENCE,
       jwksUri: env.AUTH_JWKS_URI,
       rolesClaim: env.AUTH_ROLES_CLAIM,
+      emailClaim: env.AUTH_EMAIL_CLAIM,
       replayWindowSeconds: env.REPLAY_WINDOW_SECONDS,
     },
     http: {
@@ -206,7 +209,7 @@ export function loadConfig(source: Readonly<Record<string, string | undefined>>)
       paymentFailureRate: env.PAYMENT_FAILURE_RATE,
       renewalCron: env.RENEWAL_CRON,
       renewalBatchSize: env.RENEWAL_BATCH_SIZE,
-      nonceCleanupCron: env.NONCE_CLEANUP_CRON,
+      housekeepingCron: env.HOUSEKEEPING_CRON,
     },
   };
 }

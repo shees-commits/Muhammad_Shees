@@ -50,6 +50,15 @@ export class PrismaChatRepository implements ChatRepository {
     return { items: rows.map(toChatMessage), total };
   }
 
+  async findStalePending(before: Date, limit: number): Promise<ChatMessage[]> {
+    const rows = await this.prisma.chatMessage.findMany({
+      where: { status: 'PENDING', createdAt: { lt: before } },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map(toChatMessage);
+  }
+
   async statsSince(since: Date): Promise<ChatUsageStats> {
     const [bySource, failed] = await Promise.all([
       this.prisma.chatMessage.groupBy({

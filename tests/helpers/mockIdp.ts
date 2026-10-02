@@ -12,6 +12,7 @@ import {
 export const MOCK_ISSUER = 'https://mock-idp.test/';
 export const MOCK_AUDIENCE = 'https://ggi-api';
 export const MOCK_ROLES_CLAIM = 'https://ggi-api/roles';
+export const MOCK_EMAIL_CLAIM = 'https://ggi-api/email';
 
 export interface TokenOptions {
   sub?: string;
@@ -55,7 +56,7 @@ export async function createMockIdp(): Promise<MockIdp> {
       nowSeconds,
       claims: {
         [MOCK_ROLES_CLAIM]: options.roles ?? [],
-        ...(options.email === undefined ? {} : { email: options.email }),
+        ...(options.email === undefined ? {} : { [MOCK_EMAIL_CLAIM]: options.email }),
       },
     };
   };

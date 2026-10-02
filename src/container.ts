@@ -5,6 +5,7 @@ import type { LLMProvider } from './modules/chat/domain/ports/LLMProvider.js';
 import { ChatService } from './modules/chat/domain/services/ChatService.js';
 import { QuotaService } from './modules/chat/domain/services/QuotaService.js';
 import { MockLLMProvider } from './modules/chat/infrastructure/MockLLMProvider.js';
+import { scheduleStalePendingRecovery } from './modules/chat/infrastructure/stalePending.job.js';
 import { PrismaChatRepository } from './modules/chat/repositories/PrismaChatRepository.js';
 import { PrismaQuotaRepository } from './modules/chat/repositories/PrismaQuotaRepository.js';
 import type { PaymentGateway } from './modules/subscriptions/domain/ports/PaymentGateway.js';
@@ -62,6 +63,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     issuer: config.auth.issuer,
     audience: config.auth.audience,
     rolesClaim: config.auth.rolesClaim,
+    emailClaim: config.auth.emailClaim,
     jwks: overrides.jwks ?? remoteJwks(config.auth.jwksUri),
     clock,
   });
@@ -110,8 +112,17 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       renewals,
     },
     startJobs: () => {
-      jobs.push(scheduleNonceCleanup(config.billing.nonceCleanupCron, nonces, clock, logger));
+      jobs.push(scheduleNonceCleanup(config.billing.housekeepingCron, nonces, clock, logger));
       jobs.push(scheduleRenewals(config.billing.renewalCron, renewals, logger));
+      // Anything PENDING for 2× the request deadline cannot still be in flight.
+      jobs.push(
+        scheduleStalePendingRecovery(
+          config.billing.housekeepingCron,
+          chat,
+          2 * config.http.requestTimeoutMs,
+          logger,
+        ),
+      );
     },
     shutdown: async () => {
       await Promise.all(

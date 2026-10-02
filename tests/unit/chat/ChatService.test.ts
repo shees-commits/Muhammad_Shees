@@ -228,6 +228,30 @@ describe('reserve → generate → finalize', () => {
   });
 });
 
+describe('stale PENDING recovery (crash between reserve and finalize)', () => {
+  it('fails and refunds messages stuck in PENDING past the cut-off, to their original source', async () => {
+    const quota = new QuotaService(store);
+    store.free.set('alice:2026-03', 0);
+    const b = bundle({ userId: 'alice', usedMessages: 0 });
+    store.bundles.push(b);
+    // Simulate crashes: reserve without finalize.
+    for (let i = 0; i < 4; i++) {
+      await quota.reserve({ userId: 'alice', question: 'q', requestId: 'r', now: clock.now() });
+    }
+    expect(store.freeUsedOf('alice', '2026-03')).toBe(3);
+    expect(store.bundle(b.id).usedMessages).toBe(1);
+
+    const svc = service();
+    expect(await svc.recoverStalePending(60_000)).toBe(0); // not stale yet
+
+    clock.advance(2 * 60_000);
+    expect(await svc.recoverStalePending(60_000)).toBe(4);
+    expect(store.freeUsedOf('alice', '2026-03')).toBe(0);
+    expect(store.bundle(b.id).usedMessages).toBe(0);
+    expect([...store.messages.values()].every((m) => m.status === 'FAILED')).toBe(true);
+  });
+});
+
 describe('domain authorization (ChatPolicy via ChatService)', () => {
   it('lets owners read their message, hides it from others (404) and allows admins', async () => {
     const svc = service();

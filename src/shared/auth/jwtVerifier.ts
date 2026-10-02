@@ -22,6 +22,8 @@ export interface JwtVerifierOptions {
   issuer: string;
   audience: string;
   rolesClaim: string;
+  /** Claim carrying the user's email (optional in access tokens). */
+  emailClaim?: string;
   /** Key source: remote JWKS in production, a local JWKS in tests. */
   jwks: JWTVerifyGetKey;
   clock: Clock;
@@ -85,7 +87,7 @@ export function createJwtVerifier(options: JwtVerifierOptions): JwtVerifier {
     }
 
     const roles = rolesFrom(payload, options.rolesClaim);
-    const email = payload['email'];
+    const email = payload[options.emailClaim ?? 'email'];
     return {
       sub,
       roles,

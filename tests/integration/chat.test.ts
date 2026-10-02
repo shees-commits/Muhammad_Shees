@@ -71,6 +71,22 @@ describe('POST /chat/messages', () => {
     expect(errorOf(res).code).toBe('VALIDATION_ERROR');
   });
 
+  it('stores SQL-looking input verbatim as data (parameterised queries)', async () => {
+    const payload = `Robert'); DROP TABLE "User"; -- and ' OR '1'='1`;
+    const res = await t.as({ sub: 'auth0|bobby' }).post('/chat/messages', { question: payload });
+    expect(res.status).toBe(201);
+    const row = await prisma.chatMessage.findUniqueOrThrow({
+      where: { id: (res.body as { id: string }).id },
+    });
+    expect(row.question).toBe(payload);
+    expect(await prisma.user.count()).toBeGreaterThan(0); // table intact
+
+    const probe = await t
+      .as({ sub: 'auth0|bobby' })
+      .get(`/chat/messages/${encodeURIComponent("1' OR '1'='1")}`);
+    expect(probe.status).toBe(400);
+  });
+
   it('rejects mass-assignment fields (userId, quotaSource, tokens)', async () => {
     const res = await t.as({ sub: 'auth0|alice' }).post('/chat/messages', {
       question: 'hi',

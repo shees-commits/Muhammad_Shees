@@ -124,6 +124,14 @@ export class InMemoryChatStore implements QuotaRepository, ChatRepository {
     });
   }
 
+  findStalePending(before: Date, limit: number): Promise<ChatMessage[]> {
+    return Promise.resolve(
+      [...this.messages.values()]
+        .filter((m) => m.status === 'PENDING' && m.createdAt < before)
+        .slice(0, limit),
+    );
+  }
+
   statsSince(): Promise<ChatUsageStats> {
     throw new Error('not used in unit tests');
   }

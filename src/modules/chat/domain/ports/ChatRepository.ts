@@ -30,6 +30,8 @@ export interface ChatRepository {
   complete(messageId: string, record: CompletionRecord): Promise<ChatMessage>;
   findById(id: string): Promise<ChatMessage | null>;
   listByUser(userId: string, page: Page): Promise<PageResult<ChatMessage>>;
+  /** PENDING messages created before `before` (stuck after a crash mid-request). */
+  findStalePending(before: Date, limit: number): Promise<ChatMessage[]>;
   /** Completed-message statistics since a moment (for admin metrics). */
   statsSince(since: Date): Promise<ChatUsageStats>;
 }
