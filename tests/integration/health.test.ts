@@ -1,26 +1,12 @@
-import { pino } from 'pino';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
-import { createPrismaClient, pingDatabase } from '../../src/shared/db/prisma.js';
-import { createApp } from '../../src/shared/http/app.js';
+import { describe, expect, it } from 'vitest';
+import { createPrismaClient } from '../../src/shared/db/prisma.js';
 import { errorOf } from '../helpers/http.js';
-import { testConfig } from '../helpers/testConfig.js';
-import { TEST_DATABASE_URL } from '../helpers/testDatabase.js';
-
-const prisma = createPrismaClient(TEST_DATABASE_URL);
-const logger = pino({ level: 'silent' });
-
-afterAll(async () => {
-  await prisma.$disconnect();
-});
+import { createTestApp } from '../helpers/testApp.js';
 
 describe('GET /health', () => {
   it('returns 200 with only status information when the database is reachable', async () => {
-    const app = createApp({
-      config: testConfig(),
-      logger,
-      checkDatabase: () => pingDatabase(prisma),
-    });
+    const { app } = await createTestApp();
 
     const res = await request(app).get('/health');
 
@@ -34,11 +20,7 @@ describe('GET /health', () => {
     const unreachable = createPrismaClient(
       'postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1',
     );
-    const app = createApp({
-      config: testConfig(),
-      logger,
-      checkDatabase: () => pingDatabase(unreachable, 1500),
-    });
+    const { app } = await createTestApp({ overrides: { prisma: unreachable } });
 
     const res = await request(app).get('/health');
 
@@ -48,11 +30,7 @@ describe('GET /health', () => {
   });
 
   it('renders unknown routes in the standard error envelope', async () => {
-    const app = createApp({
-      config: testConfig(),
-      logger,
-      checkDatabase: () => Promise.resolve(true),
-    });
+    const { app } = await createTestApp();
     const res = await request(app).get('/no-such-route');
     expect(res.status).toBe(404);
     expect(errorOf(res).code).toBe('NOT_FOUND');

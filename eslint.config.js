@@ -30,6 +30,8 @@ const FORBIDDEN_IN_DOMAIN = [
       '**/shared/logging/**',
       '**/shared/config/**',
       '**/shared/auth/**',
+      // The Actor type is a framework-free value object policies depend on.
+      '!**/shared/auth/Actor.js',
       '**/container*',
     ],
     message: 'Dependency rule: domain must not import outer layers.',

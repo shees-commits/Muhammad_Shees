@@ -86,6 +86,8 @@ const EnvSchema = z
     RATE_LIMIT_CHAT_PER_USER: positiveInt.default(20),
     RATE_LIMIT_SUBSCRIPTIONS_PER_IP: positiveInt.default(60),
     RATE_LIMIT_SUBSCRIPTIONS_PER_USER: positiveInt.default(30),
+    RATE_LIMIT_ADMIN_PER_IP: positiveInt.default(60),
+    RATE_LIMIT_ADMIN_PER_USER: positiveInt.default(30),
 
     LLM_MIN_LATENCY_MS: z.coerce.number().int().min(0).default(300),
     LLM_MAX_LATENCY_MS: z.coerce.number().int().min(0).default(1500),
@@ -136,6 +138,7 @@ export interface AppConfig {
     auth: RateLimitGroupConfig;
     chat: RateLimitGroupConfig;
     subscriptions: RateLimitGroupConfig;
+    admin: RateLimitGroupConfig;
   };
   llm: { minLatencyMs: number; maxLatencyMs: number; timeoutMs: number };
   billing: {
@@ -192,6 +195,7 @@ export function loadConfig(source: Readonly<Record<string, string | undefined>>)
         perIp: env.RATE_LIMIT_SUBSCRIPTIONS_PER_IP,
         perUser: env.RATE_LIMIT_SUBSCRIPTIONS_PER_USER,
       },
+      admin: { perIp: env.RATE_LIMIT_ADMIN_PER_IP, perUser: env.RATE_LIMIT_ADMIN_PER_USER },
     },
     llm: {
       minLatencyMs: env.LLM_MIN_LATENCY_MS,

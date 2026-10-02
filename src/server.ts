@@ -23,6 +23,7 @@ function bootstrap(): void {
   const server = app.listen(config.port, () => {
     logger.info({ port: config.port, env: config.nodeEnv }, 'HTTP server listening');
   });
+  container.startJobs();
 
   // Socket-level limits against slowloris-style clients that trickle headers or bodies.
   server.headersTimeout = 15_000;

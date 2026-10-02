@@ -23,6 +23,7 @@ const HTTP_STATUS = {
   INVALID_STATE_TRANSITION: 409,
   RATE_LIMITED: 429,
   REQUEST_TIMEOUT: 503,
+  LLM_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 } as const satisfies Record<ErrorCode, number>;
 
@@ -77,8 +78,13 @@ export const notFoundHandler: RequestHandler = (_req, _res, next) => {
  */
 export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, next) => {
   if (res.headersSent) {
-    // A response is already on the wire (e.g. the request timed out).
-    // Let Express abort the connection rather than writing twice.
+    if (res.writableEnded) {
+      // The response already completed (typically the timeout middleware answered 503 and the
+      // handler tried to respond afterwards). Never write twice; just record it.
+      req.log.debug({ err }, 'Error after response was already sent');
+      return;
+    }
+    // Headers are out but the body is incomplete: let Express abort the connection.
     req.log.warn({ err }, 'Error after response headers were sent');
     next(err);
     return;
