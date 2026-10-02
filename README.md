@@ -247,6 +247,265 @@ Error codes ([`errorCodes.ts`](src/shared/errors/errorCodes.ts)), mapped to HTTP
 | 503    | `REQUEST_TIMEOUT`, `LLM_UNAVAILABLE` (D-15)                              |
 | 500    | `INTERNAL_ERROR`                                                         |
 
+### Live demo (real Auth0 token)
+
+Recorded on 2026-10-02 against `npm run dev` and the dev database, using a real access token for an Auth0
+Username-Password user with the `admin` role (password grant, see §3). The commands are exactly as run; only the
+token is redacted (it never appears in any response). IDs and timestamps are the real values from that run.
+
+```bash
+# Obtain a token (§3), then:
+export TOKEN=<redacted>
+```
+
+**1. Who am I?** The user is provisioned just-in-time from the token. `role: ADMIN` comes from the `https://ggi-api/roles` claim set by the Auth0 Action.
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts GET /auth/me
+```
+
+```text
+HTTP 200
+{
+  "id": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "sub": "auth0|6abfd4fc65287fdc6865f4ea",
+  "email": null,
+  "role": "ADMIN",
+  "roles": [
+    "admin"
+  ],
+  "createdAt": "2026-10-02T18:41:28.146Z"
+}
+```
+
+**2. Free message 1 of 3**
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /chat/messages '{"question":"Live demo question 1: what is Domain-Driven Design?"}'
+```
+
+```text
+HTTP 201
+{
+  "id": "fac2fe20-5506-4659-86d0-f4be69f47ee4",
+  "userId": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "question": "Live demo question 1: what is Domain-Driven Design?",
+  "answer": "Short version first, then details. You asked: \"Live demo question 1: what is Domain-Driven Design?\". This is a simulated response from a mocked OpenAI model; in production this text would come from the real provider. (ref 5f6b23a4)",
+  "status": "COMPLETED",
+  "quotaSource": "FREE",
+  "subscriptionId": null,
+  "model": "gpt-4o-mini (mock)",
+  "usage": {
+    "promptTokens": 13,
+    "completionTokens": 58,
+    "totalTokens": 71
+  },
+  "latencyMs": 1355,
+  "requestId": "8d557dcc-6db4-4bc6-8157-2b60f7eb64d1",
+  "createdAt": "2026-10-02T18:41:28.870Z",
+  "completedAt": "2026-10-02T18:41:30.237Z"
+}
+```
+
+**3. Free message 2 of 3**
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /chat/messages '{"question":"Live demo question 2: what is Domain-Driven Design?"}'
+```
+
+```text
+HTTP 201
+{
+  "id": "05b6a6a9-3050-449b-9bc8-db19fe89655e",
+  "userId": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "question": "Live demo question 2: what is Domain-Driven Design?",
+  "answer": "Short version first, then details. You asked: \"Live demo question 2: what is Domain-Driven Design?\". This is a simulated response from a mocked OpenAI model; in production this text would come from the real provider. (ref 6f3a0306)",
+  "status": "COMPLETED",
+  "quotaSource": "FREE",
+  "subscriptionId": null,
+  "model": "gpt-4o-mini (mock)",
+  "usage": {
+    "promptTokens": 13,
+    "completionTokens": 58,
+    "totalTokens": 71
+  },
+  "latencyMs": 1144,
+  "requestId": "4903cca5-e0a6-437f-b92f-00a7ce1390d8",
+  "createdAt": "2026-10-02T18:41:31.082Z",
+  "completedAt": "2026-10-02T18:41:32.235Z"
+}
+```
+
+**4. Free message 3 of 3**
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /chat/messages '{"question":"Live demo question 3: what is Domain-Driven Design?"}'
+```
+
+```text
+HTTP 201
+{
+  "id": "b26e918f-ae79-4818-b42b-e37b71fe9311",
+  "userId": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "question": "Live demo question 3: what is Domain-Driven Design?",
+  "answer": "Let me break that down. You asked: \"Live demo question 3: what is Domain-Driven Design?\". This is a simulated response from a mocked OpenAI model; in production this text would come from the real provider. (ref 0a67b64d)",
+  "status": "COMPLETED",
+  "quotaSource": "FREE",
+  "subscriptionId": null,
+  "model": "gpt-4o-mini (mock)",
+  "usage": {
+    "promptTokens": 13,
+    "completionTokens": 55,
+    "totalTokens": 68
+  },
+  "latencyMs": 1321,
+  "requestId": "6c4dae9b-12e2-4331-92e0-1c25eb11f5c8",
+  "createdAt": "2026-10-02T18:41:33.224Z",
+  "completedAt": "2026-10-02T18:41:34.558Z"
+}
+```
+
+**5. The 4th message has no quota left → `402 QUOTA_EXCEEDED`** (typed details, including the UTC reset instant)
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /chat/messages '{"question":"Live demo question 4: what is Domain-Driven Design?"}'
+```
+
+```text
+HTTP 402
+{
+  "error": {
+    "code": "QUOTA_EXCEEDED",
+    "message": "Monthly free quota is used up and no subscription bundle has remaining quota",
+    "details": {
+      "freeUsed": 3,
+      "freeLimit": 3,
+      "resetsAt": "2026-11-01T00:00:00.000Z",
+      "activeBundles": 0,
+      "exhaustedBundles": 0
+    },
+    "requestId": "e1570abe-4b03-40d7-b51d-0d31f5e0a724"
+  }
+}
+```
+
+**6. Buy a BASIC bundle.** Price, quota and dates are derived server-side from the tier catalogue (the mock gateway charged successfully).
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /subscriptions '{"tier":"BASIC","billingCycle":"MONTHLY","autoRenew":true}'
+```
+
+```text
+HTTP 201
+{
+  "id": "e60b9b75-212f-486d-8335-9c9b58b07fc8",
+  "userId": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "tier": "BASIC",
+  "billingCycle": "MONTHLY",
+  "maxMessages": 10,
+  "usedMessages": 0,
+  "remainingMessages": 10,
+  "priceCents": 999,
+  "currency": "USD",
+  "startDate": "2026-10-02T18:41:36.183Z",
+  "endDate": "2026-11-02T18:41:36.183Z",
+  "renewalDate": "2026-11-02T18:41:36.183Z",
+  "autoRenew": true,
+  "status": "ACTIVE",
+  "inactiveReason": null,
+  "cancelledAt": null,
+  "createdAt": "2026-10-02T18:41:36.183Z",
+  "updatedAt": "2026-10-02T18:41:36.183Z"
+}
+```
+
+**7. The next message succeeds, charged to the new bundle** (`quotaSource: SUBSCRIPTION`)
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts POST /chat/messages '{"question":"Live demo question 5: now served by my BASIC bundle?"}'
+```
+
+```text
+HTTP 201
+{
+  "id": "c3ddc124-959f-4248-a378-c5964d552a01",
+  "userId": "3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422",
+  "question": "Live demo question 5: now served by my BASIC bundle?",
+  "answer": "Let me break that down. You asked: \"Live demo question 5: now served by my BASIC bundle?\". This is a simulated response from a mocked OpenAI model; in production this text would come from the real provider. (ref 46ba45bc)",
+  "status": "COMPLETED",
+  "quotaSource": "SUBSCRIPTION",
+  "subscriptionId": "e60b9b75-212f-486d-8335-9c9b58b07fc8",
+  "model": "gpt-4o-mini (mock)",
+  "usage": {
+    "promptTokens": 13,
+    "completionTokens": 56,
+    "totalTokens": 69
+  },
+  "latencyMs": 460,
+  "requestId": "bc401221-a20f-4371-96c9-33e971895598",
+  "createdAt": "2026-10-02T18:41:36.948Z",
+  "completedAt": "2026-10-02T18:41:37.434Z"
+}
+```
+
+**8. Usage summary**
+
+```bash
+TOKEN=<redacted> npx tsx scripts/signed-request.ts GET /chat/usage
+```
+
+```text
+HTTP 200
+{
+  "period": "2026-10",
+  "free": {
+    "limit": 3,
+    "used": 3,
+    "remaining": 0,
+    "resetsAt": "2026-11-01T00:00:00.000Z"
+  },
+  "bundles": [
+    {
+      "subscriptionId": "e60b9b75-212f-486d-8335-9c9b58b07fc8",
+      "tier": "BASIC",
+      "maxMessages": 10,
+      "usedMessages": 1,
+      "remaining": 9,
+      "endDate": "2026-11-02T18:41:36.183Z"
+    }
+  ],
+  "totalRemaining": 9
+}
+```
+
+**Bonus: the token alone is not enough.** The same valid token without the timestamp/nonce headers is rejected:
+
+```bash
+curl -s http://localhost:3000/auth/me -H "Authorization: Bearer <redacted>"
+```
+
+```text
+HTTP 401
+{"error":{"code":"UNAUTHENTICATED","message":"X-Request-Timestamp and X-Request-Nonce headers are required","details":{},"requestId":"cb1ff469-413f-4069-9b7c-2f765acfd32f"}}
+```
+
+**Server log for steps 5–7** (`npm run dev` pretty-prints; production logs the same fields as JSON). Each line
+carries the request ID, the authenticated user ID and the response time:
+
+```text
+[23:41:35.376] WARN: request completed {"service":"ggi-api","req":{"id":"e1570abe-4b03-40d7-b51d-0d31f5e0a724","method":"POST","path":"/chat/messages"},"userId":"3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422","res":{"statusCode":402},"responseTimeMs":36}
+[23:41:36.198] INFO: request completed {"service":"ggi-api","req":{"id":"8128501b-fe08-4d05-aad5-51bd4acc6118","method":"POST","path":"/subscriptions"},"userId":"3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422","res":{"statusCode":201},"responseTimeMs":22}
+[23:41:37.464] INFO: request completed {"service":"ggi-api","req":{"id":"bc401221-a20f-4371-96c9-33e971895598","method":"POST","path":"/chat/messages"},"userId":"3d2e0ea3-4c2d-4df8-941d-d1e84eb8d422","res":{"statusCode":201},"responseTimeMs":545}
+```
+
+Notes:
+
+- `email` is `null` because this tenant's Action only adds the roles claim. Adding the `${namespace}/email` line
+  from §3 populates it.
+- In development `PAYMENT_FAILURE_RATE=0.2`, so step 6 is declined about 1 time in 5 (`402 PAYMENT_FAILED`, with the
+  subscription kept as `INACTIVE` for history). Retry to get an active bundle, or set `PAYMENT_FAILURE_RATE=0`.
+- Re-running the demo in the same calendar month starts at step 7's behaviour, because the free quota is already used.
+
 ## 5. Architecture decisions
 
 ### Folder layout
